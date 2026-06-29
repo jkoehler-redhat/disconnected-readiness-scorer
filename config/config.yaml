@@ -151,7 +151,12 @@ exceptions:
     reason: "_example is a documentation-only field in inferenceservice-config — not functional configuration"
 
   # --- kuberay ---
-  # (no repo-specific exceptions)
+  - rule: "*"
+    repo: kuberay
+    paths:
+      - "apiserver/**"
+      - "ray-operator/config/default-with-webhooks/**"
+    reason: "API server and upstream default-with-webhooks kustomize overlay — not used by OpenShift kustomize, not deployed in production"
 
   # --- trustyai-service-operator ---
   # (no repo-specific exceptions)
