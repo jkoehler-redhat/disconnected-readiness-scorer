@@ -211,6 +211,23 @@ exceptions:
 
   # --- data-science-pipelines-operator ---
   # (no repo-specific exceptions)
+  - rules: image-manifest-complete
+    repo: data-science-pipelines-operator
+    paths:
+      - "scripts/release/params.py"
+    reason: "opendatahub-operator iterates over images, looks them up in imageParamsMap & prefixes them with RELATED_IMAGE_*"
+
+  - rules: no-image-tags
+    repo: data-science-pipelines-operator
+    paths:
+      - "config/overlays/make-deploy/kustomization.yaml"
+    reason: "This configuration is for local development purposes only."
+
+  - rules: no-image-tags
+    repo: data-science-pipelines-operator
+    paths:
+      - "controllers/managed_pipeline_image_env.go"
+    reason: "RELATED_IMAGE_ODH_AUTOML_IMAGE is referenced in a comment, not a config"
 
   # --- odh-model-controller ---
   # (no repo-specific exceptions)
