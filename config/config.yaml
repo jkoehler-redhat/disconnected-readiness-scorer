@@ -234,6 +234,14 @@ exceptions:
       - "api/python_api/**"
     reason: "Auto-generated Kubernetes API models with example image strings — not runtime references"
 
+  - rules: no-runtime-egress
+    repo: trainer
+    paths:
+      - "pkg/initializers/dataset/huggingface.py"
+      - "pkg/initializers/model/huggingface.py"
+    message: "*snapshot_download()*"
+    reason: "User-triggered opt-in HuggingFace downloads via hf:// URI scheme. S3 alternative available for disconnected deployments."
+
   # --- models-as-a-service ---
   # Controller image param keys — overridden at runtime via RELATED_IMAGE_*
   # env vars injected by OLM. constants.go defines ImageParamKeys which maps
