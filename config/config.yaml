@@ -151,7 +151,7 @@ exceptions:
     reason: "_example is a documentation-only field in inferenceservice-config — not functional configuration"
 
   # --- kuberay ---
-  - rule: "*"
+  - rules: "*"
     repo: kuberay
     paths:
       - "apiserver/**"
