@@ -404,14 +404,25 @@ exceptions:
       - "sdk/python/feast/api/registry/rest/rest_registry_server.py"
       - "sdk/python/feast/infra/mcp_servers/mcp_server.py"
       - "sdk/python/feast/infra/offline_stores/offline_store.py"
-    reason: "String literals in ImportError/warning messages guiding users to install optional dependencies — no actual runtime pip subprocess invocations"
+      - "sdk/python/feast/infra/online_stores/scylladb_online_store/scylladb.py"
+    reason: "String literals in ImportError/warning messages or docstrings guiding users to install optional dependencies — no actual runtime pip subprocess invocations"
     reference: "https://issues.redhat.com/browse/RHOAIENG-69995"
 
   - rules: no-runtime-egress
     repo: feast
     paths:
       - "sdk/python/feast/embedder.py"
-    reason: "Optional MultiModalEmbedder feature — user opt-in only, models can be pre-cached via HF_HOME/SENTENCE_TRANSFORMERS_HOME env vars for disconnected environments"
+    message: "*SentenceTransformer*"
+    reason: "Optional MultiModalEmbedder text model — user opt-in only, pre-cacheable via SENTENCE_TRANSFORMERS_HOME env var"
+    reference: "https://issues.redhat.com/browse/RHOAIENG-69995"
+    expires: "2027-07-07"
+
+  - rules: no-runtime-egress
+    repo: feast
+    paths:
+      - "sdk/python/feast/embedder.py"
+    message: "*from_pretrained()*"
+    reason: "Optional MultiModalEmbedder image model — user opt-in only, pre-cacheable via HF_HOME env var"
     reference: "https://issues.redhat.com/browse/RHOAIENG-69995"
     expires: "2027-07-07"
 
@@ -419,6 +430,7 @@ exceptions:
     repo: feast
     paths:
       - "sdk/python/feast/infra/ray_initializer.py"
+    message: "*load_dataset()*"
     reason: "User-invoked from_huggingface() API — does not run automatically, disconnected users use alternative data sources or pre-cached datasets"
     reference: "https://issues.redhat.com/browse/RHOAIENG-69995"
     expires: "2027-07-07"
@@ -427,6 +439,7 @@ exceptions:
     repo: feast
     paths:
       - "sdk/python/feast/transformation/ray_transformation.py"
+    message: "*SentenceTransformer*"
     reason: "SentenceTransformer reference is inside a docstring usage example, not runtime code"
     reference: "https://issues.redhat.com/browse/RHOAIENG-69995"
     expires: "2027-07-07"
