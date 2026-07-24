@@ -594,3 +594,11 @@ exceptions:
       - "ghcr.io/modelcontextprotocol/servers/github:*"
       - "custom-registry.io/my-mcp-server:*"
     reason: "CRD OpenAPI description examples in checked-in MCPLO operand manifests — documentation only, not deployed"
+
+  # --- odh-observability ---
+  - rules: image-manifest-complete
+    repo: odh-observability
+    paths:
+      - "internal/controller/templatedata.go"
+    message: "*RELATED_IMAGE_CLI_IMAGE*"
+    reason: "OpenShift platform image (origin-cli) — available on disconnected clusters via the OCP release mirror, does not need operator manifest wiring"
