@@ -450,6 +450,8 @@ exceptions:
     repo: ogx-k8s-operator
     paths:
       - "distributions.json"
+    images:
+      - "docker.io/llamastack/distribution-*"
     reason: "Upstream Llama Stack reference distribution images (docker.io/llamastack/distribution-*) — not deployed or mirrored in the disconnected RHOAI product; provided only as run-your-own-distribution references"
     reference: "https://issues.redhat.com/browse/RHOAIENG-78518"
     expires: "2027-07-30"
@@ -458,6 +460,8 @@ exceptions:
     repo: ogx-k8s-operator
     paths:
       - "distributions.json"
+    images:
+      - "docker.io/llamastack/distribution-*"
     reason: "Upstream Llama Stack reference distribution images (docker.io/llamastack/distribution-*) — not deployed or mirrored in the disconnected RHOAI product; provided only as run-your-own-distribution references"
     reference: "https://issues.redhat.com/browse/RHOAIENG-78518"
     expires: "2027-07-30"
