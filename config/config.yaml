@@ -446,7 +446,21 @@ exceptions:
     expires: "2027-07-07"
 
   # --- ogx-k8s-operator ---
-  # (no repo-specific exceptions)
+  - rules: no-image-tags
+    repo: ogx-k8s-operator
+    paths:
+      - "distributions.json"
+    reason: "Upstream Llama Stack reference distribution images (docker.io/llamastack/distribution-*) — not deployed or mirrored in the disconnected RHOAI product; provided only as run-your-own-distribution references"
+    reference: "https://issues.redhat.com/browse/RHOAIENG-78518"
+    expires: "2027-07-30"
+
+  - rules: image-manifest-complete
+    repo: ogx-k8s-operator
+    paths:
+      - "distributions.json"
+    reason: "Upstream Llama Stack reference distribution images (docker.io/llamastack/distribution-*) — not deployed or mirrored in the disconnected RHOAI product; provided only as run-your-own-distribution references"
+    reference: "https://issues.redhat.com/browse/RHOAIENG-78518"
+    expires: "2027-07-30"
 
   # --- ogx ---
   # (no repo-specific exceptions)
