@@ -761,7 +761,8 @@ exceptions:
     paths:
       - "manifests/trainer/overlays/kubeflow-platform/**"
       - "manifests/trainer/overlays/runtimes/**"
-    reason: "Upstream Kubeflow community overlays — only used by the kubeflow-platform deployment path, not by RHOAI (operator uses manifests/trainer/rhoai/ directly)"
+      - "manifests/trainer/third-party/**"
+    reason: "Upstream Kubeflow community overlays and third-party controller manifests (JobSet, LeaderWorkerSet) — not used by RHOAI. Community overlays are only for the kubeflow-platform deployment path; third-party controllers are deployed separately via OLM. The RHOAI overlay (manifests/trainer/rhoai/) does not reference these paths."
 
   # --- data-connect-hub ---
   - rules: no-image-tags
