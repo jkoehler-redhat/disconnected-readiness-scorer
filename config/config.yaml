@@ -197,13 +197,13 @@ exceptions:
     reason: "Upstream base kustomize manifest — image is unused as bff manifests would replace this field"
     reference: "https://issues.redhat.com/browse/RHOAIENG-69988"
 
+  # Path moved from manifests/common/ to manifests/base/ in odh-dashboard#8708
   - rules: no-runtime-egress
     repo: odh-dashboard
     paths:
-      - "manifests/common/apps/jupyter/deploy-python-model-quickstart.yaml"
+      - "**/deploy-python-model-quickstart.yaml"
       - "manifests/rhoai/apps/pachyderm/pachyderm-app.yaml"
     reason: "curl commands live inside OdhQuickStart/OdhApplication documentation fields shown in the dashboard UI — instructional text, not egress executed by the manifest"
-    # reference: "https://issues.redhat.com/browse/RHOAIENG-69988"
 
   # --- kubeflow ---
   - rules:
