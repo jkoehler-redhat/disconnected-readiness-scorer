@@ -435,6 +435,8 @@ exceptions:
       - "sdk/python/feast/infra/mcp_servers/mcp_server.py"
       - "sdk/python/feast/infra/offline_stores/offline_store.py"
       - "sdk/python/feast/infra/online_stores/scylladb_online_store/scylladb.py"
+      - "sdk/python/feast/embedder.py"
+      - "sdk/python/feast/repo_config.py"
     reason: "String literals in ImportError/warning messages or docstrings guiding users to install optional dependencies — no actual runtime pip subprocess invocations"
     reference: "https://issues.redhat.com/browse/RHOAIENG-69995"
     expires: "2027-07-21"
@@ -479,6 +481,13 @@ exceptions:
       - "infra/feast-operator/internal/controller/services/services_types.go"
     message: "*RELATED_IMAGE_CRON_JOB*"
     reason: "RELATED_IMAGE_CRON_JOB env var for feast-operator CronJob image — opendatahub-operator manifest wiring pending"
+
+  - rules: image-manifest-complete
+    repo: feast
+    paths:
+      - "infra/feast-operator/internal/controller/services/services_types.go"
+    message: "*RELATED_IMAGE_FEATURE_SERVER*"
+    reason: "RELATED_IMAGE_FEATURE_SERVER is remapped at deploy time by feast-module-operator imageParamMap to RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE, which is digest-pinned in the opendatahub-operator CSV"
 
   # --- ogx-k8s-operator ---
   - rules:
