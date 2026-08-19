@@ -20,6 +20,8 @@ Findings in non-production kustomize overlays (determined by the operator's over
 
 When the orchestrator provides operator manifest data, the rule also cross-references `RELATED_IMAGE_*` env vars against the authoritative operator manifest to catch stale or renamed variables.
 
+**Module mode:** Modularized components (repos with a `*-module/` subdirectory or `pkg/**/images.go` defining `RELATED_IMAGE_*`) are validated independently — the module's own image definitions are the authority. Run with `--module-mode` (or rely on auto-detection). In this mode the operator is never cloned, the stale-var check is skipped (module vars are valid by definition), and findings reference the "module manifest" rather than the "operator manifest".
+
 ## Common Failures
 
 | Failure | Severity | Example |
@@ -27,7 +29,7 @@ When the orchestrator provides operator manifest data, the rule also cross-refer
 | Image without `RELATED_IMAGE_*` mapping | blocker | Go source assigns `"quay.io/org/image:v1"` with no `RELATED_IMAGE_*` on the line |
 | Env var not in operator manifest | blocker | Repo uses `RELATED_IMAGE_FOO` but the operator manifest has no such variable |
 | Image missing from CSV `relatedImages` | blocker | YAML manifest references an image not listed in the ClusterServiceVersion |
-| Stale env var in repo source | blocker | `RELATED_IMAGE_OLD_NAME` in repo, but operator renamed it to `RELATED_IMAGE_NEW_NAME` |
+| Stale env var in repo source | blocker | `RELATED_IMAGE_OLD_NAME` in repo, but operator renamed it to `RELATED_IMAGE_NEW_NAME` (operator mode only; skipped in module mode) |
 
 ## Guidance
 
@@ -70,6 +72,16 @@ relatedImages:
   - name: my-component
     image: quay.io/org/my-component@sha256:abc123...
 ```
+
+### Option 4: Module-level validation (module mode)
+
+For repos that define their own image set independently (modularized components), run with `--module-mode`:
+
+```bash
+python3 main.py /path/to/module-repo --module-mode --rules csv,tags
+```
+
+The scanner detects the module layout automatically (`*-module/` subdirectory or `pkg/**/images.go` with `RELATED_IMAGE_*` definitions) and uses the module's own image definitions as the authority. Blockers indicate image references in the module using `RELATED_IMAGE_*` vars not defined in `images.go`. Fix by adding the missing var to the module's `images.go` and wiring it in the module's kustomize overlay.
 
 ### Completing the full chain
 

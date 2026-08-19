@@ -105,6 +105,14 @@ class TestParseArgs:
         assert args.report == "json,markdown"
         assert args.output == ["r.json", "r.md"]
 
+    def test_module_mode_default_false(self):
+        args = parse_args([])
+        assert args.module_mode is False
+
+    def test_module_mode_flag(self):
+        args = parse_args([".", "--module-mode"])
+        assert args.module_mode is True
+
 
 # --- resolve_rules ---
 
@@ -2910,3 +2918,155 @@ class TestAuditExceptionsCLI:
         assert ret == 2
         captured = capsys.readouterr()
         assert "warning" in captured.out.lower()
+
+
+class TestModuleMode:
+    """Tests for --module-mode flag and auto-detect in _run()."""
+
+    def _fake_mod(self):
+        fake_mod = MagicMock()
+        fake_mod.detect_image_pattern.return_value = "env_var"
+        fake_mod.run.return_value = RuleResult(rule="csv", passed=True)
+        return fake_mod
+
+    def _fake_module_manifest(self):
+        entry = FakeImageEntry(env_var="RELATED_IMAGE_FOO")
+        return FakeManifest(images=[entry], components=[], known_issues=[])
+
+    @patch("main.compute_production_scope", return_value=None)
+    def test_module_mode_flag_calls_build_module_manifest(self, _mock_scope):
+        fake_manifest = self._fake_module_manifest()
+        fake_mod = self._fake_mod()
+
+        with (
+            patch("main._run_arch_analyzer", return_value=None),
+            patch("main.build_module_manifest", return_value=fake_manifest) as mock_build,
+            patch("main.load_manifest") as mock_load,
+            patch("importlib.import_module", side_effect=_make_import_side_effect(fake_mod)),
+        ):
+            exit_code = main([".", "--rules", "csv", "--report", "json", "--module-mode"])
+            assert exit_code == 0
+            mock_build.assert_called_once()
+            mock_load.assert_not_called()
+
+    @patch("main.compute_production_scope", return_value=None)
+    def test_module_mode_does_not_clone_operator(self, _mock_scope):
+        fake_manifest = self._fake_module_manifest()
+        fake_mod = self._fake_mod()
+
+        with (
+            patch("main._run_arch_analyzer", return_value=None),
+            patch("main.build_module_manifest", return_value=fake_manifest),
+            patch("main.load_manifest") as mock_load,
+            patch("importlib.import_module", side_effect=_make_import_side_effect(fake_mod)),
+        ):
+            main([".", "--rules", "csv", "--report", "json", "--module-mode"])
+            mock_load.assert_not_called()
+
+    @patch("main.compute_production_scope", return_value=None)
+    def test_auto_detect_switches_to_module_mode(self, _mock_scope):
+        fake_manifest = self._fake_module_manifest()
+        fake_mod = self._fake_mod()
+
+        with (
+            patch("main._run_arch_analyzer", return_value=None),
+            patch("main.detect_module", return_value=True),
+            patch("main.build_module_manifest", return_value=fake_manifest) as mock_build,
+            patch("main.load_manifest") as mock_load,
+            patch("importlib.import_module", side_effect=_make_import_side_effect(fake_mod)),
+        ):
+            exit_code = main([".", "--rules", "csv", "--report", "json"])
+            assert exit_code == 0
+            mock_build.assert_called_once()
+            mock_load.assert_not_called()
+
+    @patch("main.compute_production_scope", return_value=None)
+    def test_auto_detect_false_uses_operator_path(self, _mock_scope):
+        fake_manifest = FakeManifest(images=[], components=[], known_issues=[])
+        fake_mod = self._fake_mod()
+
+        with (
+            patch("main._run_arch_analyzer", return_value=None),
+            patch("main.detect_module", return_value=False),
+            patch("main.build_module_manifest") as mock_build,
+            patch("main.load_manifest", return_value=(fake_manifest, set())) as mock_load,
+            patch("importlib.import_module", side_effect=_make_import_side_effect(fake_mod)),
+        ):
+            main([".", "--rules", "csv", "--report", "json"])
+            mock_load.assert_called_once()
+            mock_build.assert_not_called()
+
+    @patch("main.compute_production_scope", return_value=None)
+    def test_explicit_module_mode_skips_auto_detect(self, _mock_scope):
+        """--module-mode=True must not call detect_module at all."""
+        fake_manifest = self._fake_module_manifest()
+        fake_mod = self._fake_mod()
+
+        with (
+            patch("main._run_arch_analyzer", return_value=None),
+            patch("main.detect_module") as mock_detect,
+            patch("main.build_module_manifest", return_value=fake_manifest),
+            patch("main.load_manifest"),
+            patch("importlib.import_module", side_effect=_make_import_side_effect(fake_mod)),
+        ):
+            main([".", "--rules", "csv", "--report", "json", "--module-mode"])
+            mock_detect.assert_not_called()
+
+    @patch("main.compute_production_scope", return_value=None)
+    def test_module_manifest_env_vars_passed_to_rule(self, _mock_scope):
+        entry = FakeImageEntry(env_var="RELATED_IMAGE_FOO")
+        fake_manifest = FakeManifest(images=[entry], components=[], known_issues=[])
+        fake_mod = self._fake_mod()
+
+        with (
+            patch("main._run_arch_analyzer", return_value=None),
+            patch("main.build_module_manifest", return_value=fake_manifest),
+            patch("main.load_manifest"),
+            patch("importlib.import_module", side_effect=_make_import_side_effect(fake_mod)),
+        ):
+            main([".", "--rules", "csv", "--report", "json", "--module-mode"])
+            call_kwargs = fake_mod.run.call_args
+            assert "RELATED_IMAGE_FOO" in call_kwargs[1].get("manifest_env_vars", set())
+
+    @patch("main.compute_production_scope", return_value=None)
+    def test_module_mode_overrides_pre_loaded_operator_manifest(self, _mock_scope):
+        """batch mode (run_all.py) passes manifest= pre-loaded; module_mode must override it."""
+        operator_entry = FakeImageEntry(env_var="RELATED_IMAGE_FROM_OPERATOR")
+        operator_manifest = FakeManifest(images=[operator_entry], components=[], known_issues=[])
+
+        module_entry = FakeImageEntry(env_var="RELATED_IMAGE_FROM_MODULE")
+        module_manifest = FakeManifest(images=[module_entry], components=[], known_issues=[])
+
+        fake_mod = self._fake_mod()
+
+        with (
+            patch("main._run_arch_analyzer", return_value=None),
+            patch("main.build_module_manifest", return_value=module_manifest) as mock_build,
+            patch("main.load_manifest") as mock_load,
+            patch("importlib.import_module", side_effect=_make_import_side_effect(fake_mod)),
+        ):
+            # Simulate run_all.py passing a pre-loaded operator manifest
+            args = SimpleNamespace(
+                repo_root=".",
+                rules="csv",
+                report="json",
+                output=None,
+                config=None,
+                no_production_scope=True,
+                verbose=False,
+                arch_analyzer="",
+                module_mode=True,
+            )
+            _run(
+                args,
+                operator_path="/tmp/fake-operator",
+                manifest=operator_manifest,
+                manifest_env_vars={"RELATED_IMAGE_FROM_OPERATOR"},
+            )
+            # Must call build_module_manifest, not use the pre-loaded operator manifest
+            mock_build.assert_called_once()
+            mock_load.assert_not_called()
+            call_kwargs = fake_mod.run.call_args
+            passed_vars = call_kwargs[1].get("manifest_env_vars", set())
+            assert "RELATED_IMAGE_FROM_MODULE" in passed_vars
+            assert "RELATED_IMAGE_FROM_OPERATOR" not in passed_vars

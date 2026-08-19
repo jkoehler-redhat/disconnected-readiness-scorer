@@ -550,3 +550,140 @@ class TestParamsEnvDirsSkipped:
         images = [f.image for f in result.findings if f.image]
         assert "quay.io/org/hardcoded:v1" not in images
         assert "quay.io/org/outside:v1" in images
+
+
+class TestCheckEnvVarPatternModuleMode:
+    """Tests for check_env_var_pattern with module_mode=True."""
+
+    def _write_images_go(self, directory, *vars_):
+        directory.mkdir(parents=True, exist_ok=True)
+        content = "\n".join(f'"image-{v.lower()}": "{v}"' for v in vars_)
+        (directory / "images.go").write_text(content)
+
+    def test_stale_var_not_blocker_in_module_mode(self, tmp_path):
+        pkg = tmp_path / "pkg"
+        self._write_images_go(pkg, "RELATED_IMAGE_LOCAL")
+        # manifest_env_vars is a subset — in operator mode this would be a stale-var blocker
+        result = check_env_var_pattern(
+            tmp_path,
+            manifest_env_vars={"RELATED_IMAGE_OTHER"},
+            module_mode=True,
+        )
+        blockers = [f for f in result.findings if f.severity == "blocker"]
+        stale = [f for f in blockers if "not in operator manifest" in f.message]
+        assert stale == []
+
+    def test_stale_var_still_fires_in_operator_mode(self, tmp_path):
+        pkg = tmp_path / "pkg"
+        self._write_images_go(pkg, "RELATED_IMAGE_STALE")
+        result = check_env_var_pattern(
+            tmp_path,
+            manifest_env_vars={"RELATED_IMAGE_OTHER"},
+            module_mode=False,
+        )
+        blockers = [f for f in result.findings if f.severity == "blocker"]
+        assert any("not in operator manifest" in f.message for f in blockers)
+        assert result.passed is False
+
+    def test_unused_manifest_vars_info_skipped_in_module_mode(self, tmp_path):
+        pkg = tmp_path / "pkg"
+        self._write_images_go(pkg, "RELATED_IMAGE_FOO")
+        result = check_env_var_pattern(
+            tmp_path,
+            manifest_env_vars={"RELATED_IMAGE_FOO", "RELATED_IMAGE_EXTRA"},
+            module_mode=True,
+        )
+        info = [f for f in result.findings if "not referenced" in f.message]
+        assert info == []
+
+    def test_summary_message_says_module_manifest(self, tmp_path):
+        pkg = tmp_path / "pkg"
+        self._write_images_go(pkg, "RELATED_IMAGE_FOO")
+        result = check_env_var_pattern(
+            tmp_path,
+            manifest_env_vars={"RELATED_IMAGE_FOO"},
+            module_mode=True,
+        )
+        info = [f for f in result.findings if "module manifest" in f.message]
+        assert len(info) == 1
+
+    def test_summary_message_says_operator_manifest_in_normal_mode(self, tmp_path):
+        pkg = tmp_path / "pkg"
+        self._write_images_go(pkg, "RELATED_IMAGE_FOO")
+        result = check_env_var_pattern(
+            tmp_path,
+            manifest_env_vars={"RELATED_IMAGE_FOO"},
+            module_mode=False,
+        )
+        info = [f for f in result.findings if "operator manifest" in f.message]
+        assert len(info) == 1
+
+    def test_cross_ref_undefined_var_still_blocker_in_module_mode(self, tmp_path):
+        """Image ref to var not in module manifest → still a blocker."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "controller.go").write_text(
+            'image := "quay.io/org/img:v1"  // RELATED_IMAGE_UNDEFINED'
+        )
+        result = check_env_var_pattern(
+            tmp_path,
+            manifest_env_vars={"RELATED_IMAGE_DEFINED"},
+            module_mode=True,
+        )
+        blockers = [f for f in result.findings if f.severity == "blocker"]
+        assert any("RELATED_IMAGE_UNDEFINED" in f.message for f in blockers)
+        assert result.passed is False
+
+    def test_cross_ref_blocker_message_says_module_in_module_mode(self, tmp_path):
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "controller.go").write_text(
+            'image := "quay.io/org/img:v1"  // RELATED_IMAGE_MISSING'
+        )
+        result = check_env_var_pattern(
+            tmp_path,
+            manifest_env_vars={"RELATED_IMAGE_OTHER"},
+            module_mode=True,
+        )
+        blockers = [f for f in result.findings if f.severity == "blocker"]
+        assert any("module manifest" in f.message for f in blockers)
+
+    def test_run_passes_module_mode_to_check(self, tmp_path):
+        """run() with module_mode=True skips stale-var check."""
+        pkg = tmp_path / "pkg"
+        self._write_images_go(pkg, "RELATED_IMAGE_LOCAL")
+        # 5 occurrences needed to trigger env_var pattern detection
+        go_file = pkg / "controller.go"
+        go_file.write_text(
+            '"RELATED_IMAGE_A"\n"RELATED_IMAGE_B"\n"RELATED_IMAGE_C"\n'
+            '"RELATED_IMAGE_D"\n"RELATED_IMAGE_E"\n'
+        )
+        result = run(
+            str(tmp_path),
+            manifest_env_vars={"RELATED_IMAGE_OTHER"},
+            module_mode=True,
+        )
+        stale_blockers = [
+            f
+            for f in result.findings
+            if f.severity == "blocker" and "not in operator manifest" in f.message
+        ]
+        assert stale_blockers == []
+
+    def test_run_module_mode_bypasses_occurrence_threshold(self, tmp_path):
+        """Module repos with fewer than 5 RELATED_IMAGE_* still get validated."""
+        cmd = tmp_path / "cmd"
+        cmd.mkdir()
+        # Only 1 occurrence — below auto-detection threshold; would normally
+        # return "Cannot determine image management pattern"
+        (cmd / "main.go").write_text(
+            'operandImage := os.Getenv("RELATED_IMAGE_ODH_MY_OPERAND_IMAGE")\n'
+        )
+        result = run(
+            str(tmp_path),
+            manifest_env_vars={"RELATED_IMAGE_ODH_MY_OPERAND_IMAGE"},
+            module_mode=True,
+        )
+        assert result.rule == "image-manifest-complete"
+        assert not any("Cannot determine" in f.message for f in result.findings)
+        assert any("module manifest" in f.message for f in result.findings)
