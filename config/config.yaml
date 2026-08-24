@@ -437,6 +437,7 @@ exceptions:
       - "sdk/python/feast/infra/online_stores/scylladb_online_store/scylladb.py"
       - "sdk/python/feast/embedder.py"
       - "sdk/python/feast/repo_config.py"
+      - "sdk/python/feast/credentials.py"
     reason: "String literals in ImportError/warning messages or docstrings guiding users to install optional dependencies — no actual runtime pip subprocess invocations"
     reference: "https://issues.redhat.com/browse/RHOAIENG-69995"
     expires: "2027-07-21"
