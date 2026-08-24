@@ -88,13 +88,9 @@ model = AutoModel.from_pretrained("/models/bert-base-uncased")
 
 If the external call is for optional functionality (telemetry, update checks, non-critical health probes), make it conditional or remove it entirely for disconnected deployments.
 
-### Option 4: Request an exception
-
-If the external dependency is required and has been validated to work with an internal mirror, file an exception in [config/config.yaml](https://github.com/opendatahub-io/disconnected-readiness-scorer/blob/main/config/config.yaml) with a justification.
-
 ### False positives
 
-HTTP client setup code that constructs a client but only calls internal endpoints, URLs that are configurable but where the config read happens on a different line, and files outside production scope are common false positives. The scanner detects configurability by looking for `os.Getenv`, `config.`, `viper.`, `${...}` on the same line — if the config read is on a different line, it may miss it. Verify manually and add a path or message exception if confirmed safe.
+HTTP client setup code that constructs a client but only calls internal endpoints, URLs that are configurable but where the config read happens on a different line, and files outside production scope are common false positives. The scanner detects configurability by looking for `os.Getenv`, `config.`, `viper.`, `${...}` on the same line — if the config read is on a different line, it may miss it. Verify manually and add a path exclusion if confirmed safe.
 
 ## References
 

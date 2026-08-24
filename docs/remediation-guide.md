@@ -57,7 +57,7 @@ Detects outbound HTTP/network calls (`http.Get`, `requests.get`, `fetch`, `curl`
 
 **Investigate:** Is the URL hardcoded to an external endpoint, or configurable via env var / config / CR field? Is the target cluster-internal (e.g. `*.svc.cluster.local`)? The scanner detects configurability by looking for `os.Getenv`, `config.`, `viper.`, `${...}` on the same line — if the config read is on a different line, the scanner may miss it.
 
-**Remediate:** See the [no-runtime-egress reference doc](references/no-runtime-egress.md) for options including making URLs configurable, pre-caching model artifacts, and requesting exceptions.
+**Remediate:** See the [no-runtime-egress reference doc](references/no-runtime-egress.md) for options including making URLs configurable and pre-caching model artifacts.
 
 **False positives:** HTTP client setup code that constructs a client but only calls internal endpoints; URLs that are configurable but the config read happens on a different line. Verify manually and add a central exclusion if confirmed safe.
 
@@ -90,7 +90,7 @@ Ask yourself: **does this code actually run on a customer cluster in production?
 - **No, it's test/CI/docs/examples** → Should be auto-excluded; if not, add a path exclusion
 - **No, it only runs at build time** → Not a runtime concern (e.g. Dockerfiles, build scripts, lockfile generators)
 - **No, it's in a manifest that isn't deployed** → Not a customer-facing resource
-- **Yes, it runs in production** → The finding is real and needs remediation (or a time-bounded exception — see below)
+- **Yes, it runs in production** → The finding is real and must be fixed before the PR can merge
 
 ## Excluding False Positives from Scans
 
@@ -107,23 +107,8 @@ exceptions:
     reason: "Dev tooling — not deployed in production"
 ```
 
-**Exclusions vs. exceptions:** Exclusions (`rules: "*"`, no `expires`) silence non-production noise — test directories, CI config, documentation, build files, and similar paths that never run on a customer cluster. Exceptions (specific rules, `expires` date, tracking ticket) acknowledge real disconnected issues that need time to fix — see [Time-Bounded Exceptions](#time-bounded-exceptions-for-real-issues) below. Do not use `rules: "*"` exceptions for genuine findings; overly broad wildcards silently mask real issues across rules the path does violate (CWE-16). If a path is test, CI, documentation, or build noise, it belongs in an exclusion — not in a time-bounded exception.
+Exclusions silence non-production noise — test directories, CI config, documentation, build files, and similar paths that never run on a customer cluster. Do not use `rules: "*"` for paths that are production code; overly broad wildcards silently mask real issues across rules the path does violate (CWE-16).
 
-## Time-Bounded Exceptions for Real Issues
+## What If My Component Has a Real Blocking Issue?
 
-Exceptions are for **real disconnected problems** that the team acknowledges but cannot fix immediately. They are always time-bounded with an `expires` date — the scanner will stop honoring the exception after that date, and the PR check will start failing again, ensuring the team returns to fix the root cause. The scanner warns 14 days before expiration in its report output. To renew, update the `expires` date and submit a PR with justification.
-
-```yaml
-exceptions:
-  - rules: no-runtime-egress
-    repo: my-component
-    paths:
-      - "internal/legacy_client.go"
-    reason: "Legacy HTTP client — migrating to configurable URL in RHOAIENG-12345"
-    expires: "2026-12-31"
-```
-
-Unlike exclusions, exceptions should always:
-- Target specific rules (not `"*"`)
-- Include an `expires` date
-- Reference a tracking ticket in the `reason` field
+**You will be required to fix the problem or the PR cannot merge.** Disconnected failures prevent customers from using the product and must be fixed. There is no exception process — blocking findings are real product bugs that require remediation in the current release.
