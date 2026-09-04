@@ -251,11 +251,13 @@ def check_env_var_pattern(
     production_scope=None,
     arch_data=None,
     non_image_prefixes: list[str] | None = None,
+    module_mode: bool = False,
 ) -> RuleResult:
     """Check repos that use RELATED_IMAGE_* env var pattern.
 
-    When manifest_env_vars is provided (from operator_manifest), cross-references
-    the target repo's env vars against the authoritative operator manifest.
+    When manifest_env_vars is provided, cross-references the target repo's env
+    vars against the authoritative set (operator manifest in normal mode; the
+    module's own definitions in module mode).
     """
     result = RuleResult(rule="image-manifest-complete")
     overlay_file_map = build_overlay_file_map(arch_data, repo_root)
@@ -263,6 +265,7 @@ def check_env_var_pattern(
     local_vars = set(var_locations.keys())
 
     if manifest_env_vars is not None:
+        authority = "module manifest" if module_mode else "operator manifest"
         result.findings.append(
             Finding(
                 severity="info",
@@ -272,7 +275,7 @@ def check_env_var_pattern(
                 message=f"Repo uses RELATED_IMAGE_* pattern. "
                 f"Found {len(local_vars)} env vars in repo, "
                 f"validated against {len(manifest_env_vars)} authoritative vars "
-                f"from operator manifest.",
+                f"from {authority}.",
             )
         )
     else:
@@ -384,11 +387,18 @@ def check_env_var_pattern(
                 if var_name not in manifest_env_vars:
                     relative = str(filepath.relative_to(repo_root))
                     severity = "blocker"
-                    msg = (
-                        f"Image references '{var_name}' which does not exist "
-                        f"in the operator manifest. The operator will not inject "
-                        f"this image in disconnected environments."
-                    )
+                    if module_mode:
+                        msg = (
+                            f"Image references '{var_name}' which is not defined "
+                            f"in the module manifest. This image will not be mirrored "
+                            f"in disconnected environments."
+                        )
+                    else:
+                        msg = (
+                            f"Image references '{var_name}' which does not exist "
+                            f"in the operator manifest. The operator will not inject "
+                            f"this image in disconnected environments."
+                        )
                     severity, msg = downgrade_non_production_overlay(
                         severity, msg, filepath, production_scope, overlay_file_map
                     )
@@ -404,7 +414,7 @@ def check_env_var_pattern(
                         )
                     )
 
-    if manifest_env_vars is not None:
+    if manifest_env_vars is not None and not module_mode:
         stale_vars = local_vars - manifest_env_vars
         for var in sorted(stale_vars):
             var_file, var_line = var_locations.get(var, ("", 0))
@@ -569,18 +579,24 @@ def run(
     production_scope=None,
     arch_data=None,
     non_image_prefixes: list[str] | None = None,
+    module_mode: bool = False,
     **_kwargs,
 ) -> RuleResult:
     """Run the image manifest completeness rule.
 
     When manifest_env_vars is provided, the env_var pattern check will
-    cross-reference against the authoritative operator manifest.
+    cross-reference against the authoritative set. Set module_mode=True when
+    the manifest comes from the module's own definitions rather than the
+    operator — this skips the operator-stale-var check.
     """
     root = Path(repo_root)
     tracked = get_tracked_files(root)
     pattern = detect_image_pattern(root)
 
-    if pattern == "env_var":
+    if pattern == "env_var" or (module_mode and manifest_env_vars is not None):
+        # In module mode, bypass the 5-occurrence threshold: the module manifest
+        # already confirmed this repo uses RELATED_IMAGE_* — validate against it
+        # even when occurrence count is below the auto-detection threshold.
         return check_env_var_pattern(
             root,
             manifest_env_vars=manifest_env_vars,
@@ -588,6 +604,7 @@ def run(
             production_scope=production_scope,
             arch_data=arch_data,
             non_image_prefixes=non_image_prefixes,
+            module_mode=module_mode,
         )
     if pattern == "static_csv":
         return check_static_csv_pattern(

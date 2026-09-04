@@ -36,6 +36,7 @@ python3 main.py /path/to/target/repo                        # all default rules
 python3 main.py /path/to/target/repo --rules csv,tags        # subset of rules
 python3 main.py /path/to/target/repo --report json           # JSON output
 python3 main.py /path/to/target/repo --operator-path /tmp/opendatahub-operator  # pre-cloned operator
+python3 main.py /path/to/target/repo --module-mode           # validate as standalone module (no operator clone)
 python3 main.py /path/to/target/repo --config /path/to/config.yaml              # custom central config
 python3 main.py /path/to/target/repo --arch-analyzer /path/to/arch-analyzer     # custom arch-analyzer binary
 python3 main.py /path/to/target/repo --verbose                                 # diagnostics + timing + files_checked in JSON
@@ -89,6 +90,8 @@ For detailed technical documentation of each rule — detection logic, regex pat
 | `manifest`   | `operator-manifest`       | Builds the authoritative RELATED_IMAGE manifest from the opendatahub-operator source   |
 
 **Network access:** `csv`, `tags`, and `params_env` clone the `opendatahub-operator` repo (shallow) whenever the target repo is detected as using the `RELATED_IMAGE_*` env var pattern, to cross-reference image env vars against the authoritative manifest. Use `--operator-path` to point at a pre-cloned copy and avoid the clone (e.g. for fully offline runs).
+
+**Module mode:** For repos that ship their own `RELATED_IMAGE_*` image manifest (modularized components with a `*-module/` subdirectory or `pkg/**/images.go`), use `--module-mode`. The scorer validates the module's own image set as the authority — no operator clone needed. Module repos are auto-detected; `--module-mode` makes the selection explicit and takes precedence over `--operator-path`.
 
 **Production scope** (not a rule): Uses arch-analyzer to identify production code directories. Files outside production scope are skipped (no findings emitted). Disabled with `--no-production-scope`.
 
@@ -375,6 +378,7 @@ Not every rule applies to every repo. Use `--rules` to run only the relevant che
 | Repository type                             | Recommended rules              |
 |---------------------------------------------|--------------------------------|
 | Operators using `RELATED_IMAGE_*` env vars  | `csv,tags,manifest`            |
+| Modularized components (`*-module/` layout) | `csv,tags` + `--module-mode`   |
 | Components using `params.env` + kustomize   | `params_env,tags,egress`       |
 | Python ML components (e.g., model serving)  | `python,tags,egress`           |
 | Go services / controllers                   | `csv,tags,egress`              |

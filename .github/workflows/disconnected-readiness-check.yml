@@ -16,6 +16,11 @@ on:
         required: false
         type: string
         default: ""
+      module-mode:
+        description: "Validate as a standalone module (uses the module's own RELATED_IMAGE_* definitions as authority, skips operator clone)"
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       rules:
@@ -23,6 +28,11 @@ on:
         required: false
         type: string
         default: ""
+      module-mode:
+        description: "Validate as a standalone module"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   check:
@@ -73,6 +83,7 @@ jobs:
         env:
           INPUT_RULES: ${{ inputs.rules }}
           INPUT_OPERATOR_PATH: ${{ inputs.operator-path }}
+          INPUT_MODULE_MODE: ${{ inputs.module-mode }}
         run: |
           cd scorer
 
@@ -89,6 +100,9 @@ jobs:
               exit 1
             fi
             ARGS+=(--operator-path "$OPERATOR_RESOLVED")
+          fi
+          if [ "$INPUT_MODULE_MODE" = "true" ]; then
+            ARGS+=(--module-mode)
           fi
 
           # Run analysis and capture JSON output

@@ -22,6 +22,7 @@ import jsonschema
 import yaml
 
 from rules.common import ArchAnalyzerResult, ConfigError, Finding, RuleResult, Severity
+from rules.operator_manifest import build_module_manifest, detect_module
 from rules.production_scope import compute_production_scope
 
 SEVERITY_ORDER = {"blocker": 0, "info": 1}
@@ -397,6 +398,15 @@ def parse_args(argv=None):
         action="store_true",
         help="Analyze exception entries for overly broad scope and exit. "
         "Exit code 0 if no warnings, 2 if any found.",
+    )
+    parser.add_argument(
+        "--module-mode",
+        action="store_true",
+        default=False,
+        help="Validate the repo as a standalone module. Uses the module's own "
+        "RELATED_IMAGE_* definitions (from *-module/ subdirs or pkg/**/images.go) "
+        "as the authority instead of the opendatahub-operator manifest. "
+        "Skips operator clone entirely. Takes precedence over --operator-path.",
     )
     return parser.parse_args(argv)
 
@@ -1107,6 +1117,11 @@ def _run(
     non_image_prefixes = central_cfg.get("known_non_image_prefixes", [])
     _pef_map = central_cfg.get("params_env_filenames", {})
     params_env_extra = _pef_map.get(repo_name) or _pef_map.get(repo_name.split("/")[-1]) or []
+    module_mode = getattr(args, "module_mode", False)
+    if not module_mode and detect_module(Path(repo_root)):
+        _vlog("Auto-detected module layout; switching to module mode")
+        module_mode = True
+
     need_manifest = "manifest" in selected
     image_pattern = None
     for key in selected:
@@ -1126,7 +1141,14 @@ def _run(
                 need_manifest = True
                 break
 
-    if need_manifest and manifest is None:
+    if module_mode:
+        t0 = time.monotonic()
+        _vlog("Module mode: building manifest from module source, skipping operator clone")
+        manifest_obj = build_module_manifest(repo_root)
+        manifest_env_vars = {e.env_var for e in manifest_obj.images}
+        manifest = manifest_obj
+        _vlog(f"load_manifest: {time.monotonic() - t0:.1f}s")
+    elif need_manifest and manifest is None:
         t0 = time.monotonic()
         manifest, manifest_env_vars = load_manifest(operator_path)
         _vlog(f"load_manifest: {time.monotonic() - t0:.1f}s")
@@ -1219,6 +1241,8 @@ def _run(
         kwargs = {}
         if entry.get("needs_manifest") and manifest_env_vars is not None:
             kwargs["manifest_env_vars"] = manifest_env_vars
+        if module_mode:
+            kwargs["module_mode"] = True
         if prod_scope is not None:
             kwargs["production_scope"] = prod_scope
         if component_arch_data:

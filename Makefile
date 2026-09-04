@@ -55,10 +55,10 @@ lint: ## Run all linters (matches CI)
 .PHONY: ci
 ci: lint test ## Run full CI check (lint + test)
 
-ARCH_ANALYZER_VERSION ?= v0.1.1
+ARCH_ANALYZER_VERSION ?= v0.2.4
 ARCH_ANALYZER_REPO := ugiordan/architecture-analyzer
-ARCH_ANALYZER_SHA256_darwin_arm64 := 0835020ce26bf00fea889c38fa5afeab6164994caa149beb743876447a9dcec0
-ARCH_ANALYZER_SHA256_linux_amd64  := 972f7251657fa3c2748b8218cf6f5d7679c525080caeb8132fdad80862710e72
+ARCH_ANALYZER_SHA256_darwin_arm64 := 7c0ead34aeb379e46a181dec671bb3eb556fae6de9b33c1595d3e36d5e771397
+ARCH_ANALYZER_SHA256_linux_amd64  := 80af99072aad942c898e8b9ef026b0b26a82d7bfeb0428b40c0fdda28d9d26c2
 
 _OS   := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 _ARCH := $(shell uname -m)

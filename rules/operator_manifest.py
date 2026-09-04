@@ -192,6 +192,87 @@ def parse_component_images(component_dir: Path, component_name: str) -> list[Ima
     return entries
 
 
+def _is_module_dir_name(name: str) -> bool:
+    n = name.lower()
+    return n.endswith(("-module", "_module"))
+
+
+def _dir_has_related_images(directory: Path) -> bool:
+    for go_file in directory.rglob("*.go"):
+        if any(go_file.name.endswith(s) for s in TEST_SUFFIXES):
+            continue
+        if any(d in go_file.parts for d in SKIP_DIRS):
+            continue
+        try:
+            content = go_file.read_text()
+        except (OSError, UnicodeDecodeError):
+            continue
+        if RELATED_IMAGE_PATTERN.search(content):
+            return True
+    return False
+
+
+def detect_module(repo_root: str | Path) -> bool:
+    """Return True if repo_root contains a module with RELATED_IMAGE_* definitions.
+
+    Detects two layouts:
+    - Subdirectory named ``*-module`` or ``*_module`` containing RELATED_IMAGE_* Go source.
+    - Whole-repo-is-module: ``pkg/**/images.go`` at root level with RELATED_IMAGE_*.
+
+    Known gap: standalone module operators that place RELATED_IMAGE_* directly
+    in ``cmd/`` or ``internal/`` without a ``*-module/`` subdir or
+    ``pkg/**/images.go`` are not auto-detected (e.g. mcp-lifecycle-module-operator).
+    Use ``--module-mode`` explicitly for those repos.
+    """
+    root = Path(repo_root)
+    for d in root.iterdir():
+        if d.is_dir() and _is_module_dir_name(d.name) and _dir_has_related_images(d):
+            return True
+    pkg_dir = root / "pkg"
+    if pkg_dir.is_dir():
+        for go_file in pkg_dir.rglob("images.go"):
+            try:
+                content = go_file.read_text()
+            except (OSError, UnicodeDecodeError):
+                continue
+            if RELATED_IMAGE_PATTERN.search(content):
+                return True
+    return False
+
+
+def build_module_manifest(repo_root: str | Path) -> Manifest:
+    """Build image manifest from a module's own RELATED_IMAGE_* definitions.
+
+    Scans ``*-module`` / ``*_module`` subdirectories; falls back to the repo root
+    when none are found (whole-repo-is-module layout).  Reuses
+    :func:`parse_component_images` so the returned :class:`Manifest` is identical
+    in structure to the one produced by :func:`build_manifest`.
+    """
+    root = Path(repo_root)
+    manifest = Manifest()
+
+    module_dirs = [
+        d
+        for d in sorted(root.iterdir())
+        if d.is_dir() and _is_module_dir_name(d.name) and _dir_has_related_images(d)
+    ]
+
+    if not module_dirs:
+        module_dirs = [root]
+
+    for module_dir in module_dirs:
+        component_name = module_dir.name
+        entries = parse_component_images(module_dir, component_name)
+        manifest.images.extend(entries)
+        if entries:
+            manifest.components[component_name] = {
+                "image_count": len(entries),
+                "env_vars": sorted({e.env_var for e in entries}),
+            }
+
+    return manifest
+
+
 def parse_known_issues(operator_root: Path) -> list[str]:
     """Parse component-params-env.yaml for known issues."""
     params_file = operator_root / "component-params-env.yaml"
