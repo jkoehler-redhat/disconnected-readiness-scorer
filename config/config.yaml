@@ -310,17 +310,6 @@ exceptions:
     expires: "2026-07-24"
     reference: "https://issues.redhat.com/browse/RHOAIENG-68059"
 
-  # RHAI-121: vLLM CPU P/Z AIPCC migration — images not yet published
-  - rules: image-manifest-complete
-    repo: kserve
-    paths:
-      - "kserve-module/pkg/kservemodule/images.go"
-    images:
-      - "*VLLM_CPU_PZ*"
-    reason: "vLLM CPU P/Z RELATED_IMAGE entries — AIPCC image not yet published to registry"
-    expires: "2026-08-31"
-    reference: "https://issues.redhat.com/browse/RHAI-121"
-
   # Test-only constant for OAuth proxy image
   - rules: image-manifest-complete
     repo: kserve
